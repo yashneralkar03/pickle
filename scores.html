@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pickleball Live Leaderboard</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#0a0a0f; color:#fff; font-family:'Inter',sans-serif; min-height:100vh; }
+  .bg-glow { position:fixed; width:600px; height:600px; border-radius:50%; filter:blur(120px); opacity:0.15; pointer-events:none; z-index:0; }
+  .glow-1 { background:#7c3aed; top:-200px; left:-200px; }
+  .glow-2 { background:#0ea5e9; bottom:-200px; right:-200px; }
+  .container { position:relative; z-index:1; padding:24px; max-width:1400px; margin:0 auto; }
+
+  header { text-align:center; margin-bottom:28px; }
+  .event-title { font-size:2rem; font-weight:900; background:linear-gradient(135deg,#7c3aed,#0ea5e9); -webkit-background-clip:text; -webkit-text-fill-color:transparent; letter-spacing:-1px; }
+  .subtitle { color:#64748b; font-size:0.8rem; margin-top:4px; letter-spacing:2px; text-transform:uppercase; }
+  .status-bar { display:flex; justify-content:center; align-items:center; gap:16px; margin-top:10px; flex-wrap:wrap; }
+  .status-pill { display:flex; align-items:center; gap:6px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.08); border-radius:20px; padding:5px 14px; font-size:0.75rem; color:#94a3b8; }
+  .pulse { width:8px; height:8px; border-radius:50%; background:#22c55e; animation:pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.8)} }
+
+  .config-panel { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); border-radius:16px; padding:20px 24px; margin-bottom:24px; }
+  .config-title { font-size:0.72rem; text-transform:uppercase; letter-spacing:2px; color:#64748b; margin-bottom:12px; }
+  .config-row { display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; }
+  .config-field { display:flex; flex-direction:column; gap:5px; flex:1; min-width:260px; }
+  .config-field label { font-size:0.72rem; color:#94a3b8; }
+  .config-field input { background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); border-radius:8px; padding:10px 12px; color:#fff; font-size:0.82rem; outline:none; transition:border-color 0.2s; }
+  .config-field input:focus { border-color:#7c3aed; }
+  .btn { padding:10px 20px; border-radius:8px; font-size:0.85rem; font-weight:600; cursor:pointer; border:none; transition:all 0.2s; white-space:nowrap; }
+  .btn-primary { background:linear-gradient(135deg,#7c3aed,#6d28d9); color:#fff; }
+  .btn-primary:hover { opacity:0.85; }
+  .btn-secondary { background:rgba(255,255,255,0.07); color:#94a3b8; border:1px solid rgba(255,255,255,0.1); }
+  .progress-bar-wrap { background:rgba(255,255,255,0.05); border-radius:4px; height:3px; margin-top:14px; overflow:hidden; }
+  .progress-bar { height:100%; background:linear-gradient(90deg,#7c3aed,#0ea5e9); border-radius:4px; transition:width 1s linear; }
+  .error-msg { color:#f87171; font-size:0.78rem; margin-top:10px; display:none; line-height:1.5; }
+  .success-msg { color:#22c55e; font-size:0.78rem; margin-top:10px; display:none; }
+
+  .boards { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+  @media(max-width:860px){ .boards{grid-template-columns:1fr} }
+  .board { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:20px; overflow:hidden; }
+  .board-header { padding:16px 22px; display:flex; align-items:center; gap:12px; border-bottom:1px solid rgba(255,255,255,0.06); }
+  .board-header.men { background:linear-gradient(135deg,rgba(124,58,237,0.25),rgba(124,58,237,0.05)); }
+  .board-header.women { background:linear-gradient(135deg,rgba(236,72,153,0.25),rgba(236,72,153,0.05)); }
+  .board-icon { font-size:1.3rem; }
+  .board-title { font-size:0.95rem; font-weight:700; }
+  .board-subtitle { font-size:0.7rem; color:#64748b; margin-top:1px; }
+  .qualify-badge { margin-left:auto; background:rgba(34,197,94,0.15); border:1px solid rgba(34,197,94,0.3); color:#22c55e; font-size:0.68rem; font-weight:600; padding:3px 10px; border-radius:20px; }
+
+  table { width:100%; border-collapse:collapse; }
+  thead tr { background:rgba(255,255,255,0.03); }
+  th { padding:9px 14px; font-size:0.65rem; text-transform:uppercase; letter-spacing:1.5px; color:#475569; text-align:left; font-weight:600; }
+  th:last-child, td:last-child { text-align:right; padding-right:18px; }
+  tbody tr { border-top:1px solid rgba(255,255,255,0.04); transition:background 0.2s; }
+  tbody tr:hover { background:rgba(255,255,255,0.04); }
+  tbody tr.qualified { background:rgba(34,197,94,0.04); }
+  tbody tr.cutoff-row { border-top:2px dashed rgba(34,197,94,0.35); }
+  td { padding:11px 14px; font-size:0.83rem; vertical-align:middle; }
+  .player-name { font-weight:600; font-size:0.86rem; }
+  .player-id { font-size:0.68rem; color:#475569; margin-top:1px; }
+  .games-played { text-align:center; color:#64748b; font-size:0.8rem; }
+  .points-cell { font-weight:700; font-size:0.98rem; text-align:right; padding-right:18px; }
+  .points-men { color:#a78bfa; }
+  .points-women { color:#f472b6; }
+  .q-dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:#22c55e; margin-right:6px; box-shadow:0 0 6px #22c55e; }
+  .eliminated .player-name { color:#475569; }
+  .eliminated .points-men, .eliminated .points-women { color:#334155; }
+
+  .state-msg { text-align:center; padding:50px 20px; color:#475569; font-size:0.85rem; line-height:1.8; }
+  .spinner { width:28px; height:28px; border:3px solid rgba(255,255,255,0.06); border-top-color:#7c3aed; border-radius:50%; animation:spin 0.8s linear infinite; margin:0 auto 14px; }
+  @keyframes spin { to{transform:rotate(360deg)} }
+</style>
+</head>
+<body>
+<div class="bg-glow glow-1"></div>
+<div class="bg-glow glow-2"></div>
+<div class="container">
+  <header>
+    <div class="event-title">🏓 PICKLEBALL CHAMPIONSHIP</div>
+    <div class="subtitle">Live Group Stage Leaderboard</div>
+    <div class="status-bar">
+      <div class="status-pill"><div class="pulse"></div> Live</div>
+      <div class="status-pill" id="matchCount">— / 50 Matches</div>
+      <div class="status-pill" id="lastUpdated">—</div>
+    </div>
+  </header>
+
+  <div class="config-panel">
+    <div class="config-title">⚙ Google Sheets Connection</div>
+    <div class="config-row">
+      <div class="config-field">
+        <label>Paste your full published CSV URL here</label>
+        <input type="text" id="csvUrl" placeholder="https://docs.google.com/spreadsheets/d/e/2PACX-.../pub?gid=...&single=true&output=csv" />
+      </div>
+      <button class="btn btn-primary" onclick="connectSheet()">Connect</button>
+      <button class="btn btn-secondary" onclick="loadDemo()">Demo</button>
+    </div>
+    <div class="error-msg" id="errorMsg"></div>
+    <div class="success-msg" id="successMsg">✓ Connected successfully! Refreshing every 10 seconds.</div>
+    <div class="progress-bar-wrap"><div class="progress-bar" id="refreshBar" style="width:0%"></div></div>
+  </div>
+
+  <div class="boards">
+    <div class="board">
+      <div class="board-header men">
+        <div class="board-icon">🟣</div>
+        <div><div class="board-title">Men's Standings</div><div class="board-subtitle">Top 8 qualify for knockouts</div></div>
+        <div class="qualify-badge">Top 8 ✓</div>
+      </div>
+      <div id="menTable"><div class="state-msg">Paste your published CSV URL above and click Connect</div></div>
+    </div>
+    <div class="board">
+      <div class="board-header women">
+        <div class="board-icon">🩷</div>
+        <div><div class="board-title">Women's Standings</div><div class="board-subtitle">Top 8 qualify for knockouts</div></div>
+        <div class="qualify-badge">Top 8 ✓</div>
+      </div>
+      <div id="womenTable"><div class="state-msg">Paste your published CSV URL above and click Connect</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let refreshInterval = null, barTimer = null, refreshProgress = 0;
+  const REFRESH_SEC = 10;
+
+  const demoMen = [
+    {id:'M01',name:'Arjun Mehta',games:5,points:47},
+    {id:'M02',name:'Rahul Sharma',games:5,points:43},
+    {id:'M03',name:'Karan Patel',games:5,points:41},
+    {id:'M04',name:'Dev Nair',games:5,points:39},
+    {id:'M05',name:'Rohan Iyer',games:5,points:38},
+    {id:'M06',name:'Nikhil Reddy',games:4,points:35},
+    {id:'M07',name:'Aditya Bose',games:5,points:33},
+    {id:'M08',name:'Siddharth Rao',games:5,points:31},
+    {id:'M09',name:'Ishaan Gupta',games:4,points:29},
+    {id:'M10',name:'Vikram Joshi',games:5,points:27},
+    {id:'M11',name:'Pranav Menon',games:5,points:25},
+    {id:'M12',name:'Kabir Singh',games:3,points:22},
+  ];
+  const demoWomen = [
+    {id:'F01',name:'Priya Krishnan',games:5,points:45},
+    {id:'F02',name:'Sneha Nambiar',games:5,points:44},
+    {id:'F03',name:'Ananya Sharma',games:5,points:40},
+    {id:'F04',name:'Riya Patel',games:5,points:38},
+    {id:'F05',name:'Kavya Menon',games:5,points:36},
+    {id:'F06',name:'Divya Reddy',games:4,points:34},
+    {id:'F07',name:'Meera Iyer',games:5,points:32},
+    {id:'F08',name:'Pooja Nair',games:5,points:30},
+    {id:'F09',name:'Aisha Siddiqui',games:4,points:28},
+    {id:'F10',name:'Tanya Bose',games:5,points:25},
+  ];
+
+  function loadDemo() {
+    clearInterval(refreshInterval);
+    renderTable('menTable', demoMen, 'men');
+    renderTable('womenTable', demoWomen, 'women');
+    updateStatus(demoMen, demoWomen);
+    startBar();
+  }
+
+  function connectSheet() {
+    const url = document.getElementById('csvUrl').value.trim();
+    if (!url || !url.includes('docs.google.com')) {
+      showError('Please paste the full published CSV URL from Google Sheets (File → Share → Publish to web).');
+      return;
+    }
+    hideError();
+    clearInterval(refreshInterval);
+    fetchData(url);
+    refreshInterval = setInterval(() => fetchData(url), REFRESH_SEC * 1000);
+    startBar();
+  }
+
+  async function fetchData(url) {
+    // Add cache-busting param so Google returns fresh data every time
+    const bustUrl = url + (url.includes('?') ? '&' : '?') + 'cachebust=' + Date.now();
+    try {
+      const res = await fetch(bustUrl);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const csv = await res.text();
+      if (!csv || csv.trim() === '') throw new Error('Empty response from sheet');
+      const { men, women } = parseCSV(csv);
+      if (!men.length && !women.length) throw new Error('No player data found — check your Leaderboard tab has Player ID, Player Name, Gender, Games Played, Total Points columns');
+      renderTable('menTable', men, 'men');
+      renderTable('womenTable', women, 'women');
+      updateStatus(men, women);
+      hideError();
+      document.getElementById('successMsg').style.display = 'block';
+    } catch(e) {
+      showError('Could not load data: ' + e.message);
+    }
+  }
+
+  function parseCSV(csv) {
+    const rows = csv.trim().split('\n').slice(1).map(r => {
+      // Handle quoted fields
+      const cols = r.match(/(".*?"|[^,]+|(?<=,)(?=,)|^(?=,)|(?<=,)$)/g) || r.split(',');
+      const clean = cols.map(c => c ? c.replace(/^"|"$/g,'').trim() : '');
+      return {
+        id: clean[0] || '',
+        name: clean[1] || '',
+        gender: (clean[2] || '').trim().toUpperCase(),
+        games: parseInt(clean[3]) || 0,
+        points: parseInt(clean[4]) || 0
+      };
+    }).filter(p => p.name && p.gender);
+    const men = rows.filter(r => r.gender === 'M').sort((a,b) => b.points - a.points || b.games - a.games);
+    const women = rows.filter(r => r.gender === 'F').sort((a,b) => b.points - a.points || b.games - a.games);
+    return { men, women };
+  }
+
+  function rankIcon(i) {
+    if (i===0) return '🥇';
+    if (i===1) return '🥈';
+    if (i===2) return '🥉';
+    return `<span style="color:#475569;font-size:0.8rem">${i+1}</span>`;
+  }
+
+  function renderTable(elId, players, gender) {
+    const ptClass = gender==='men' ? 'points-men' : 'points-women';
+    if (!players.length) {
+      document.getElementById(elId).innerHTML = '<div class="state-msg">No data yet.</div>';
+      return;
+    }
+    let html = `<table><thead><tr>
+      <th style="width:44px">Rank</th>
+      <th>Player</th>
+      <th style="text-align:center">Games</th>
+      <th style="text-align:right;padding-right:18px">Points</th>
+    </tr></thead><tbody>`;
+    players.forEach((p,i) => {
+      const q = i < 8;
+      html += `<tr class="${q?'qualified':'eliminated'}${i===8?' cutoff-row':''}">
+        <td style="text-align:center">${rankIcon(i)}</td>
+        <td><div class="player-name">${q?'<span class="q-dot"></span>':''}${p.name}</div><div class="player-id">${p.id}</div></td>
+        <td class="games-played">${p.games} / 5</td>
+        <td class="points-cell ${ptClass}">${p.points}</td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    document.getElementById(elId).innerHTML = html;
+  }
+
+  function updateStatus(men, women) {
+    const total = Math.round((men.reduce((s,p)=>s+p.games,0) + women.reduce((s,p)=>s+p.games,0)) / 4);
+    document.getElementById('matchCount').textContent = `${total} / 50 Matches`;
+    document.getElementById('lastUpdated').textContent = `Updated ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'})}`;
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('errorMsg');
+    el.textContent = '⚠ ' + msg;
+    el.style.display = 'block';
+    document.getElementById('successMsg').style.display = 'none';
+  }
+  function hideError() { document.getElementById('errorMsg').style.display = 'none'; }
+
+  function startBar() {
+    clearInterval(barTimer);
+    refreshProgress = 0;
+    const bar = document.getElementById('refreshBar');
+    bar.style.width = '0%';
+    barTimer = setInterval(() => {
+      refreshProgress += 100 / (REFRESH_SEC * 10);
+      bar.style.width = Math.min(refreshProgress, 100) + '%';
+      if (refreshProgress >= 100) refreshProgress = 0;
+    }, 100);
+  }
+</script>
+</body>
+</html>
